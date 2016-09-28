@@ -10,13 +10,14 @@ describe('Scope', function() {
     });
 
 
+    // 第一部分，作用域和digest
     describe('$digest', function() {
         var scope;
         beforeEach(function() {
             scope = new Scope();
         });
 
-        it('2.watch第一次$digest时调用监听函数', function() {
+        it('1.1 watch第一次$digest时调用监听函数', function() {
             var watchFn = jasmine.createSpy();
             var listenerFn = jasmine.createSpy();
             scope.$watch(watchFn, listenerFn);
@@ -26,7 +27,7 @@ describe('Scope', function() {
             expect(listenerFn).toHaveBeenCalled();
         });
 
-        it('3.把scope当做参数调用watch函数', function() {
+        it('1.2 把scope当做参数调用watch函数', function() {
             var watchFn = jasmine.createSpy();
             var listenerFn = function() {
 
@@ -36,7 +37,7 @@ describe('Scope', function() {
             expect(watchFn).toHaveBeenCalledWith(scope);
         });
 
-        it('4.当值发生变化时调用listenerFn', function() {
+        it('1.3 当值发生变化时调用listenerFn', function() {
             scope.someValue = 'a';
             scope.counter = 0;
 
@@ -44,7 +45,6 @@ describe('Scope', function() {
                 return scope.someValue;
             }, function(newValue, oldValue, scope) {
                 scope.counter++;
-                console.log(scope.counter);
             });
 
             expect(scope.counter).toBe(0);
@@ -61,7 +61,7 @@ describe('Scope', function() {
             expect(scope.counter).toBe(2);
         });
 
-        it('5.初次值为undefined', function() {
+        it('1.4 初次值为undefined', function() {
             scope.someValue = undefined;
             scope.counter = 0;
 
@@ -76,14 +76,14 @@ describe('Scope', function() {
             expect(scope.counter).toBe(1);
         });
 
-        it('6.缺省listener的watcher', function() {
+        it('1.5 缺省listener的watcher', function() {
             var watchFn = jasmine.createSpy().and.returnValue('something');
             scope.$watch(watchFn);
             scope.$digest();
             expect(watchFn).toHaveBeenCalled();
         });
 
-        it('7.当前digest中修改了scope的其他属性值，即watch中修改了另外一个watch的值', function() {
+        it('1.6 当前digest中修改了scope的其他属性值，即watch中修改了另外一个watch的值', function() {
             scope.name = 'zhaoke';
 
             // 注意这里的注入watchers的顺序，颠倒则会导致这个case通过
@@ -108,7 +108,7 @@ describe('Scope', function() {
             expect(scope.initial).toBe('Z.');
         });
 
-        it('8.10次迭代后放弃监听', function() {
+        it('1.7 10次迭代后放弃监听', function() {
             scope.counterA = 0;
             scope.counterB = 0;
 
@@ -129,7 +129,7 @@ describe('Scope', function() {
             }).toThrow();
         });
 
-        it('9.最后一个watch是干净的时候则终止digest', function() {
+        it('1.8 最后一个watch是干净的时候则终止digest', function() {
             var watchExecutions = 0; // watch执行次数
             scope.array = _.range(10);
 
@@ -155,7 +155,7 @@ describe('Scope', function() {
 
         });
 
-        it('10.不结束digest，因此新的watch都不执行', function() {
+        it('1.9 不结束digest，因此新的watch都不执行', function() {
             scope.aValue = 'abc';
             scope.counter = 0;
 
@@ -176,7 +176,7 @@ describe('Scope', function() {
             expect(scope.counter).toBe(1);
         });
 
-        it('11.监听value的改变，而不仅仅是引用', function() {
+        it('1.10 监听value的改变，而不仅仅是引用', function() {
             scope.aValue = [1, 2, 3];
             scope.counter = 0;
 
@@ -197,7 +197,7 @@ describe('Scope', function() {
             // expect(scope.counter2).toBe(2);
         });
 
-        it('12.处理NaN', function() {
+        it('1.11 处理NaN', function() {
             scope.aValue = 0 / 0;
             scope.counter = 0;
 
@@ -211,7 +211,7 @@ describe('Scope', function() {
             expect(scope.counter).toBe(1);
         });
 
-        it('13.$eval用法', function() {
+        it('1.12 $eval用法', function() {
             scope.aValue = 42;
             var r = scope.$eval(function(scope) {
                 return scope.aValue;
@@ -221,7 +221,7 @@ describe('Scope', function() {
 
         });
 
-        it('14.$eval第二个参数用法', function() {
+        it('1.13 $eval第二个参数用法', function() {
             scope.aValue = 42;
             var r = scope.$eval(function(scope, arg) {
                 return scope.aValue + arg;
@@ -231,7 +231,7 @@ describe('Scope', function() {
 
         });
 
-        it('15.$apply用法，内部调用$digest', function() {
+        it('1.14 $apply用法，内部调用$digest', function() {
             scope.a = 'someValue';
             scope.counter = 0;
             scope.$watch(function(scope) {
@@ -249,7 +249,7 @@ describe('Scope', function() {
             expect(scope.counter).toBe(2);
         });
 
-        it('16.$evalAsync的用法，在同一周期中延后执行函数', function() {
+        it('1.15 $evalAsync的用法，在同一周期中延后执行函数', function() {
             // 和$timeout的区别在于，$timeout把控制权交给了浏览器
             // $evalAsync可以更加严格的控制代码执行时间
             scope.a = [1, 2, 3];
@@ -270,7 +270,7 @@ describe('Scope', function() {
             expect(scope.asyncEvaluatedImmediately).toBe(false);
         });
 
-        it("17.watch中执行$evalAsync", function() {
+        it("1.16 watch中执行$evalAsync", function() {
             scope.aValue = [1, 2, 3];
             scope.asyncEvaluatedTimes = 0;
             scope.$watch(function(scope) {
@@ -287,7 +287,7 @@ describe('Scope', function() {
             expect(scope.asyncEvaluatedTimes).toBe(2);
         });
 
-        it("18.终止通过watch添加$evalAsyncs", function() {
+        it("1.17 终止通过watch添加$evalAsyncs", function() {
             scope.aValue = [1, 2, 3];
             scope.$watch(function(scope) {
                     //这会导致digest()中的while一直执行
@@ -298,7 +298,7 @@ describe('Scope', function() {
             expect(function() { scope.$digest(); }).toThrow();
         });
 
-        it("19.$$phase的值为当前执行digest的时期", function() {
+        it("1.18 $$phase的值为当前执行digest的时期", function() {
             scope.aValue = [1, 2, 3];
             scope.phaseInWatchFunction = undefined;
             scope.phaseInListenerFunction = undefined;
@@ -321,7 +321,7 @@ describe('Scope', function() {
             expect(scope.phaseInApplyFunction).toBe('$apply');
         });
 
-        it('20.$evalAsync中来一个digest', function(done) {
+        it('1.19 $evalAsync中来一个digest', function(done) {
             scope.aValue = "abc";
             scope.counter = 0;
             scope.$watch(
@@ -343,7 +343,7 @@ describe('Scope', function() {
             }, 1);
         });
 
-        it('21.每次digest后执行$$postDigest函数', function() {
+        it('1.20 每次digest后执行$$postDigest函数', function() {
             scope.counter = 0;
             scope.$$postDigest(function() {
                 scope.counter++;
@@ -359,19 +359,17 @@ describe('Scope', function() {
             expect(scope.counter).toBe(1);
         });
 
-        it('22.digest中不包含$postDigest', function() {
+        it('1.21 digest中不包含$postDigest', function() {
             scope.a = 'a';
 
             scope.$$postDigest(function() {
                 scope.a = 'b';
-                console.log('post:', scope.a);
 
             });
 
             scope.$watch(function(scope) {
                 return scope.a;
             }, function(newValue, oldValue, scope) {
-                console.log('watch:', scope.a);
                 scope.watchVal = newValue;
             });
 
@@ -383,7 +381,7 @@ describe('Scope', function() {
 
         });
 
-        it("23.销毁$watch", function() {
+        it("1.22 销毁$watch", function() {
             scope.aValue = 'abc';
             scope.counter = 0;
             var destroyWatch = scope.$watch(function(scope) {
@@ -400,6 +398,318 @@ describe('Scope', function() {
             destroyWatch();
             scope.$digest();
             expect(scope.counter).toBe(2);
+        });
+
+    });
+
+    // 第二部分，inheritance，作用域继承
+    describe('inheritance', function() {
+        it('2.1继承父级属性', function() {
+            var parent = new Scope();
+            parent.aValue = [1, 2, 3];
+            var child = parent.$new();
+            expect(child.aValue).toEqual([1, 2, 3]);
+        });
+
+        it('2.2 父级拿不到子级的属性', function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            child.aValue = [1, 2, 3];
+
+            expect(parent.aValue).toBeUndefined();
+        });
+
+        it('2.3 继承父级的属性应该与定义父级属性的时间无关', function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = [1, 2, 3];
+
+            expect(child.aValue).toEqual([1, 2, 3]);
+        });
+
+        it('2.4 可修改父作用域的属性', function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = [1, 2, 3];
+            child.aValue.push(4);
+
+            expect(child.aValue).toEqual([1, 2, 3, 4]);
+            expect(parent.aValue).toEqual([1, 2, 3, 4]);
+        });
+
+        it("2.5 watch父作用域中的熟悉", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = [1, 2, 3];
+            child.counter = 0;
+            child.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                },
+                true
+            );
+            child.$digest();
+            expect(child.counter).toBe(1);
+            parent.aValue.push(4);
+            child.$digest();
+            expect(child.counter).toBe(2);
+        });
+
+        it("2.6 可以嵌套任意深的层级", function() {
+            var a = new Scope();
+            var aa = a.$new();
+            var aaa = aa.$new();
+            var aab = aa.$new();
+            var ab = a.$new();
+            var abb = ab.$new();
+            a.value = 1;
+            expect(aa.value).toBe(1);
+            expect(aaa.value).toBe(1);
+            expect(aab.value).toBe(1);
+            expect(ab.value).toBe(1);
+            expect(abb.value).toBe(1);
+
+            ab.anotherValue = 2;
+            expect(abb.anotherValue).toBe(2);
+            expect(aa.anotherValue).toBeUndefined();
+            expect(aaa.anotherValue).toBeUndefined();
+        });
+
+        it("2.7 用同名属性覆盖父作用域属性", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.name = 'Joe';
+            child.name = 'Jill';
+            expect(child.name).toBe('Jill');
+            expect(parent.name).toBe('Joe');
+        });
+
+        it("2.8 子作用域更改父作用域的属性", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.user = { name: 'Joe' };
+            child.user.name = 'Jill';
+            expect(child.user.name).toBe('Jill');
+            expect(parent.user.name).toBe('Jill');
+        });
+
+        it("2.9 执行digest时不执行父级的watch", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = 'abc';
+            parent.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.aValueWas = newValue;
+                }
+            );
+            child.$digest();
+            expect(child.aValueWas).toBeUndefined();
+        });
+
+        it("2.10 记录子作用域", function() {
+            var parent = new Scope();
+            var child1 = parent.$new();
+            var child2 = parent.$new();
+            var child2_1 = child2.$new();
+            expect(parent.$$children.length).toBe(2);
+            expect(parent.$$children[0]).toBe(child1);
+            expect(parent.$$children[1]).toBe(child2);
+            expect(child1.$$children.length).toBe(0);
+            expect(child2.$$children.length).toBe(1);
+            expect(child2.$$children[0]).toBe(child2_1);
+        });
+
+        it("2.11 父级作用域执行digest触发子作用域的watch", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            parent.aValue = 'abc';
+            child.$watch(function(scope) {
+                return scope.aValue;
+            }, function(newValue, oldValue, scope) {
+                scope.aValueWas = newValue;
+            });
+
+            parent.$digest();
+            expect(child.aValueWas).toBe('abc');
+        });
+
+        // 正常的digest只会父影响子
+        it("2.12 执行$apply时进行全局digest", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            var child2 = child.$new();
+            parent.aValue = 'abc';
+            parent.counter = 0;
+            parent.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            child2.$apply(function(scope) {});
+            expect(parent.counter).toBe(1);
+        });
+
+        it("2.13 执行$evalAsync时进行全局digest", function(done) {
+            var parent = new Scope();
+            var child = parent.$new();
+            var child2 = child.$new();
+            parent.aValue = 'abc';
+            parent.counter = 0;
+            parent.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+
+            child2.$evalAsync(function(scope) {});
+            setTimeout(function() {
+                expect(parent.counter).toBe(1);
+                done();
+            }, 50);
+        });
+
+        it("2.14 独立作用域不可以访问父级属性", function() {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            parent.aValue = 'abc';
+            expect(child.aValue).toBeUndefined();
+        });
+
+        it("2.15 独立作用域不可以监听父作用域属性", function() {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            parent.aValue = 'abc';
+            child.$watch(
+                function(scope) {
+                    return scope.aValue; // undefined
+                },
+                function(newValue, oldValue, scope) {
+                    scope.aValueWas = newValue;
+                }
+            );
+            child.$digest();
+            expect(child.aValueWas).toBeUndefined();
+        });
+
+        it("2.16 父作用域执行digest时应该影响独立子作用域", function() {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            child.aValue = 'abc';
+            child.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.aValueWas = newValue;
+                }
+            );
+            parent.$digest();
+            expect(child.aValueWas).toBe('abc');
+        });
+
+        it("2.17 独立子作用域执行$apply时从根作用域开始digest", function() {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            var child2 = child.$new();
+            parent.aValue = '2.17';
+            parent.counter = 0;
+            parent.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            child2.$apply(function(scope) {});
+            expect(parent.counter).toBe(1);
+        });
+
+        it("2.18 独立子作用域执行$evalAsync时从根作用域开始digest", function(done) {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            var child2 = child.$new();
+            parent.aValue = '2.18';
+            parent.counter = 0;
+            parent.$watch(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            child2.$evalAsync(function(scope) {});
+            setTimeout(function() {
+                expect(parent.counter).toBe(1);
+                done();
+            }, 50);
+        });
+
+        it("2.19 在独立作用域中执行$evalAsync", function(done) {
+            var parent = new Scope();
+            var child = parent.$new(true);
+
+            // $evalAsync中执行digest的是self.$$root，
+            // 所以$digest中的$$asyncQueue是rootScope.$$asyncQueue
+            // 应该把父作用域的$$asyncQueue引用赋给child
+            child.$evalAsync(function(scope) {
+                scope.didEvalAsync = true;
+            });
+
+            setTimeout(function() {
+                expect(child.didEvalAsync).toBe(true);
+                done();
+            }, 500);
+        });
+
+        it("2.20 在独立作用域中执行$$postDigest", function() {
+            var parent = new Scope();
+            var child = parent.$new(true);
+            child.$$postDigest(function() {
+                child.didPostDigest = true;
+            });
+
+            // 此时parent.$digest中this.$$postDigest为空
+            // 所以需要修改源代码把父作用域的$$postDigest和子作用域的$$postDigest关联起来
+            parent.$digest();
+            expect(child.didPostDigest).toBe(true);
+        });
+
+        it("2.21 调用$destory后将不会再被digest", function() {
+            var parent = new Scope();
+            var child = parent.$new();
+            child.aValue = [1, 2, 3];
+            child.counter = 0;
+            child.$watch(
+                function(scope) {
+                    return scope.aValue; },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                },
+                true
+            );
+            parent.$digest();
+            expect(child.counter).toBe(1);
+            child.aValue.push(4);
+            parent.$digest();
+            expect(child.counter).toBe(2);
+            child.$destroy();
+            child.aValue.push(5);
+            parent.$digest();
+            expect(child.counter).toBe(2);
         });
 
     });
