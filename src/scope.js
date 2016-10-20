@@ -71,11 +71,21 @@ Scope.prototype = {
             // 初始化watch的默认值为fn，防止watchFn返回的是一个undefined导致不执行listenerFn
             last: initWatchVal
         };
+
+        // 每次添加watch时，把watcher放到$$watchers的首位，不用push()方法
         this.$$watchers.unshift(watcher);
 
         // 每次有新加入watch时，把最后一次有脏值的watch置为空，防止listner里面增加的watch不执行
         this.$$root.$$lastDirtyWatch = null;
 
+        /**
+         * 返回一个函数用用来remove一个watch
+         * var a = $watch(function(){
+         *     return scope.a;
+         *     }, function(newVal, oldVal){
+         *     });
+         * a(); // remove watch a
+         */
         return function() {
             var watcherIndex = self.$$watchers.indexOf(watcher);
             if (watcherIndex >= 0) {
@@ -144,7 +154,6 @@ Scope.prototype = {
             while (this.$$asyncQueue.length) {
                 var asyncTask = this.$$asyncQueue.shift();
                 asyncTask.scope.$eval(asyncTask.expression);
-        		console.log('digest:',this.$$asyncQueue);
             }
 
             dirty = this.$$digestOnce();
@@ -216,7 +225,7 @@ Scope.prototype = {
             return this.$eval(fn);
         } finally {
             this.$clearPhase();
-            // finnaly保证了及时上门的函数保错也会执行$digest()
+            // finnaly保证了即使上面的函数保错也会执行$digest()
             // this.$digest();
             this.$$root.$digest();
         }
@@ -243,18 +252,111 @@ Scope.prototype = {
     },
 
     // 销毁作用域
-    $destory: function(){
-    	if(this === this.$root){
-    		return;
-    	}
+    $destroy: function() {
+        if (this === this.$root) {
+            return;
+        }
 
-    	// 所有同级作用域
-    	var siblings = this.$parent.$$children;
+        // 所有同级作用域
+        var siblings = this.$parent.$$children;
 
-    	// 所有兄弟作用域
-    	var indexOfThis = siblings.indexOf(this);
-    	if(indexOfThis >= 0){
-    		siblings.splice(indexOfThis, 1);
-    	}
+        // 所有兄弟作用域
+        var indexOfThis = siblings.indexOf(this);
+        if (indexOfThis >= 0) {
+            siblings.splice(indexOfThis, 1);
+        }
+    },
+
+    // 监听集，用来监听对象和数组，不过只监听外层变化，不做深层次监听
+    $watchCollection: function(watchFn, listenerFn) {
+        var self = this;
+        var newValue;
+        var oldValue;
+        var changeCount = 0;
+
+        var internalWatchFn = function(scope) {
+            newValue = watchFn(scope);
+
+            /* 加一层新老值判断，检测是否发生改变
+             * 确实有改变则更新changeCount，internalWatchFn的值就发生变化，
+             * this.$watch监听的值发生改变则执行internalListenerFn
+             */
+
+            // 不能通过newValue !== oldValue的形式，解决NaN的问题
+            // string其实也是类数组，但这里直接过滤掉，string是不可变的所以用此形式监听没用
+            if (isObject(newValue)) {
+                if (isArrayLike(newValue)) {
+                    if (!_.isArray(oldValue)) {
+                        // 新老不一致果断发生了改变
+                        changeCount++;
+
+                        // 这就导致无论newValue是数组还是类数组，oldValue永远是数组
+                        oldValue = [];
+                    }
+
+                    // 由于watchCollection是引用比较，
+                    // 这里增加监听数组长度的改变，但是同一个数组中某项值发生变化则不视为发生变化
+                    if(newValue.length !== oldValue.length){
+                        changeCount++;
+                        oldValue.length = newValue.length;
+                    }
+
+                    // 监听数组值是否发生改变
+                    _.forEach(newValue, function(newItem, i){
+                        if(newItem !== oldValue[i]){
+                            changeCount++;
+                            oldValue[i] = newItem;
+                        }
+                    });
+
+                } else {
+
+                    // object
+                    if(!isObject(oldValue) || isArrayLike(oldValue)){
+                        changeCount++;
+                        oldValue = {};
+                    }
+
+                    // 检测对象值是否有改变
+                    for(var key in newValue){
+
+                        // 只检测当前对象自有属性，不检测通过原型链继承来的
+                        if(newValue.hasOwnProperty(key)){
+
+                            // 若为新增元素，则oldValue[key] === undefined
+                            if(oldValue[key] !== newValue[key]){
+                                changeCount++;
+                                oldValue[key] = newValue[key];
+                            }
+                        }
+
+                    }
+
+                    for(var key in oldValue){
+                        // 新的没有有旧的有，则是删除了属性
+                        if(oldValue.hasOwnProperty(key) && !newValue.hasOwnProperty(key)){
+                            changeCount++;
+                            delete oldValue[key]
+                        }
+                    }
+
+                }
+            } else {
+                // false表示只进行引用比较
+                if (!self.$$areEqual(newValue, oldValue, false)) {
+                    changeCount++;
+                }
+
+                // 普通类型则赋值
+                oldValue = newValue;
+            }
+
+            return changeCount; // 发生改变的次数，有变化则执行listenerFn
+        };
+
+        var internalListenerFn = function() {
+            listenerFn(newValue, oldValue, self);
+        };
+        return this.$watch(internalWatchFn, internalListenerFn);
     }
 };

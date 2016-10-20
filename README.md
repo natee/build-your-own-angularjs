@@ -29,3 +29,8 @@ AngularJS内部原理讲解。
 
 - 如何销毁一个子作用域
 从父作用域中的$$children中移除当前作用域，从而在下次执行digest时将不会执行当前作用域。
+
+### 监听集合
+`$watchCollection`和`$watch`的区别：
+- 
+

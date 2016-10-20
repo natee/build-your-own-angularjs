@@ -400,6 +400,34 @@ describe('Scope', function() {
             expect(scope.counter).toBe(2);
         });
 
+        it("1.23 在digest期间destory了一个$watch", function() {
+            scope.aValue = 'abc';
+            var watchCalls = [];
+
+            scope.$watch(function(scope) {
+                watchCalls.push('first');
+                return scope.aValue;
+            });
+
+            var destroyWatch = scope.$watch(function(scope) {
+                watchCalls.push('second');
+
+                // 销毁watch后需要重新进行脏值检测
+                destroyWatch();
+            });
+
+            scope.$watch(function(scope) {
+                watchCalls.push('third');
+                return scope.aValue;
+            });
+
+            // $$watchers = ['first','second','third']
+            // 中途销毁一个watch，导致$$digestOnce序列错乱，无法执行后面的watch
+
+            scope.$digest();
+            expect(watchCalls).toEqual(['first', 'second', 'third', 'first', 'third']);
+        });
+
     });
 
     // 第二部分，inheritance，作用域继承
@@ -695,7 +723,8 @@ describe('Scope', function() {
             child.counter = 0;
             child.$watch(
                 function(scope) {
-                    return scope.aValue; },
+                    return scope.aValue;
+                },
                 function(newValue, oldValue, scope) {
                     scope.counter++;
                 },
@@ -710,6 +739,304 @@ describe('Scope', function() {
             child.aValue.push(5);
             parent.$digest();
             expect(child.counter).toBe(2);
+        });
+
+    });
+
+    // 第三部分，watchCollection，监听集
+    describe("$watchCollection", function() {
+        var scope;
+        beforeEach(function() {
+            scope = new Scope();
+        });
+
+        it("3.1 对于non-collections来说就像普通watch一样", function() {
+            var valueProvided;
+            scope.aValue = 42;
+            scope.counter = 0;
+            scope.$watchCollection(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    valueProvided = newValue;
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            expect(valueProvided).toBe(scope.aValue);
+            scope.aValue = 43;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            // 再次执行，值没改变，所以不执行watch
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it("3.2 监听NaN", function() {
+            scope.aValue = 0 / 0;
+            scope.counter = 0;
+            scope.$watchCollection(
+                function(scope) {
+                    return scope.aValue;
+                },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+        });
+
+        it("3.3 监听新数组", function() {
+            scope.counter = 0;
+            scope.$watchCollection(
+                function(scope) {
+                    return scope.arr; },
+                function(newValue, oldValue, scope) {
+                    scope.counter++;
+                }
+            );
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+            scope.arr = [1, 2, 3];
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+        });
+
+        it("3.4 监听数组元素的增加", function(){
+            scope.arr = ['a','b'];
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arr;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.arr.push(4);
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.5 监听数组元素的减少", function(){
+            scope.arr = ['a','c'];
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arr;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.arr.shift();
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.6 监听数组项的改变", function(){
+            scope.arr = ['a','c'];
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arr;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.arr[1] = 'd';
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.7 监听数组项的排序", function(){
+            scope.arr = [2,1,3];
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arr;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.arr.sort();
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.8 监听函数参数的改变，类数组的对象", function(){
+
+            // 类数组：参数、DOM中的NodeList
+            (function(){
+                scope.arrayLike = arguments;
+            })(1,2,3);
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arrayLike;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.arrayLike[1] = 4;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.9 监听NodeList对象的改变，类数组的对象", function(){
+
+            document.documentElement.appendChild(document.createElement('div')); 
+            scope.arrayLike = document.getElementsByTagName('div');
+
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.arrayLike;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            document.documentElement.appendChild(document.createElement('div'));
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.10 监听到一个值变成对象", function(){
+
+            scope.counter = 0;
+
+            scope.$watchCollection(function(scope){
+                return scope.obj;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.obj = {
+                a: 1
+            };
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.11 对象中新增属性", function(){
+
+            scope.counter = 0;
+            scope.obj = {
+                a: 1
+            };
+
+            scope.$watchCollection(function(scope){
+                return scope.obj;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.obj.b = 2;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.12 对象中属性的值发生改变", function(){
+
+            scope.counter = 0;
+            scope.obj = {
+                a: 1
+            };
+
+            scope.$watchCollection(function(scope){
+                return scope.obj;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.obj.a = 2;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
+        it("3.13 删除对象的属性", function(){
+
+            scope.counter = 0;
+            scope.obj = {
+                a: 1
+            };
+
+            scope.$watchCollection(function(scope){
+                return scope.obj;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            delete scope.obj.a;
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
         });
 
     });
