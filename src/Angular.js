@@ -33,15 +33,25 @@ function isObject(value) {
  * @return {Boolean}      [description]
  */
 function isArrayLike(obj) {
+
+	// 肯定不是类数组
     if (obj === null || isWindow(obj) || obj === undefined) {
         return false;
     }
 
+    // 数组和string都是类数组对象
     if (isArray(obj) || isString(obj)) {
         return true;
     }
 
+    // 这个length就很尴尬了，到底真的是类数组的长度，还是obj的一个length的属性？
     var length = obj.length;
-    return isNumber(length);
+
+    /**
+     * 判断是arraylike条件：
+     * 1、obj.length是一个数值，如：obj.length = 'a'这就肯定是一个对象了
+     * 2、如果存在length，作为一个obj=['a','b','c']这样的类数组对象，一定存在obj[length-1]
+     */
+    return isNumber(length) && length > 0 && (length - 1) in obj;
 
 }

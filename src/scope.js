@@ -273,6 +273,7 @@ Scope.prototype = {
         var newValue;
         var oldValue;
         var changeCount = 0;
+        var oldLength; // 放在internalWatchFn外部，在下次监听时直接获取
 
         var internalWatchFn = function(scope) {
             newValue = watchFn(scope);
@@ -311,10 +312,13 @@ Scope.prototype = {
 
                 } else {
 
-                    // object
+                    var newLength = 0; // 新对象属性的个数
+
+                    // object 从无到有，发生改变
                     if(!isObject(oldValue) || isArrayLike(oldValue)){
                         changeCount++;
                         oldValue = {};
+                        oldLength = 0;
                     }
 
                     // 检测对象值是否有改变
@@ -323,20 +327,37 @@ Scope.prototype = {
                         // 只检测当前对象自有属性，不检测通过原型链继承来的
                         if(newValue.hasOwnProperty(key)){
 
-                            // 若为新增元素，则oldValue[key] === undefined
-                            if(oldValue[key] !== newValue[key]){
+                            newLength++;
+
+                            if(oldValue.hasOwnProperty(key)){
+                                // 修改属性值
+                                // oldValue[key] === undefined
+                                if(oldValue[key] !== newValue[key]){
+                                    changeCount++;
+                                    oldValue[key] = newValue[key];
+                                }
+                            }else{
+                                // 新增属性
                                 changeCount++;
+
+                                // 对于第一次执行来说，这个就是oldObj的属性个数，应该和newLength相等
+                                oldLength++;
                                 oldValue[key] = newValue[key];
                             }
+                            
                         }
 
                     }
 
-                    for(var key in oldValue){
-                        // 新的没有有旧的有，则是删除了属性
-                        if(oldValue.hasOwnProperty(key) && !newValue.hasOwnProperty(key)){
-                            changeCount++;
-                            delete oldValue[key]
+                    // 所以只有删除了对象的属性才会执行二次遍历
+                    if(oldLength > newLength){
+                        changeCount++;
+                        for(var key in oldValue){
+                            if(oldValue.hasOwnProperty(key) && !newValue.hasOwnProperty(key)){
+                                // 删除了属性
+                                oldLength--;
+                                delete oldValue[key]
+                            }
                         }
                     }
 

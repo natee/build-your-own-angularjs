@@ -1039,5 +1039,28 @@ describe('Scope', function() {
 
         });
 
+        it("3.14 特殊case:对象带有一个length的属性", function(){
+
+            scope.counter = 0;
+            scope.obj = {
+                a: 1,
+                length: 5
+            };
+
+            scope.$watchCollection(function(scope){
+                return scope.obj;
+            }, function(newValue, oldValue, scope){
+                scope.counter++;
+            });
+
+            scope.$digest();
+            expect(scope.counter).toBe(1);
+
+            scope.obj.newKey = 2; // 新增项，但是obj.length未改变
+            scope.$digest();
+            expect(scope.counter).toBe(2);
+
+        });
+
     });
 });
