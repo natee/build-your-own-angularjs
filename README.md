@@ -31,6 +31,58 @@ AngularJS内部原理讲解。
 从父作用域中的$$children中移除当前作用域，从而在下次执行digest时将不会执行当前作用域。
 
 ### 监听集合
+`$watchCollection`在监听大数组和大对象上相比于`$watch`有较大的性能提升。因为它只做外层监听，**不做深层次监听**。
 `$watchCollection`和`$watch`的区别：
-- 
+- 用法：`$scope.$watchCollection(watchFn, listenerFn)`，`$scope.$watch(watchFn, listenerFn, valueEq)`。
+- `$watch`当valueEq为false时，对于数组类型来说只做引用比较，把新数组赋给监听的数组时才可以出发`listener`，数组的增删改均不会触发`listener`。
+- `$watchCollection`则还会监听数组内值的变化。
+- `$watch`当valueEq为true时，则会对数组或对象进行深度值监听。
+
+<table>
+  <caption>3 种监听方式会在何时调用回调</caption>
+  <tbody>
+  <tr>
+    <th></th>
+    <th>$watch</th>
+    <th>$watchCollection</th>
+    <th>$watch Equality</th>
+  </tr>
+  <tr>
+    <td>替换数组</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>替换数组<br>(元素实际值没变)</td>
+    <td>√</td>
+    <td>√</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>替换数组元素</td>
+    <td></td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>替换数组元素<br>(元素内属性值没变)</td>
+    <td></td>
+    <td>√</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>新增/删除数组元素</td>
+    <td></td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>更新数组元素的属性值</td>
+    <td></td>
+    <td></td>
+    <td>√</td>
+  </tr>
+</tbody>
+</table>
 

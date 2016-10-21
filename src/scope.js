@@ -274,6 +274,9 @@ Scope.prototype = {
         var oldValue;
         var changeCount = 0;
         var oldLength; // 放在internalWatchFn外部，在下次监听时直接获取
+        var veryOldValue;
+        var trackVeryOldValue = listenerFn.length > 1; // 监听执行函数参数个数超过1则表示需要用到oldValue
+        var firstRun = true;
 
         var internalWatchFn = function(scope) {
             newValue = watchFn(scope);
@@ -376,7 +379,19 @@ Scope.prototype = {
         };
 
         var internalListenerFn = function() {
-            listenerFn(newValue, oldValue, self);
+            // TODO 显然还有bug，第一次执行时，veryOldValue = oldValue = newValue;
+
+            if(firstRun){
+                listenerFn(newValue, oldValue, self);
+                firstRun = false;
+            }else{
+                listenerFn(newValue, veryOldValue, self);
+            }
+
+            if(trackVeryOldValue){
+                // 保留真实的变化之前的值
+                veryOldValue = _.clone(newValue);
+            }
         };
         return this.$watch(internalWatchFn, internalListenerFn);
     }

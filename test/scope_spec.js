@@ -796,7 +796,8 @@ describe('Scope', function() {
             scope.counter = 0;
             scope.$watchCollection(
                 function(scope) {
-                    return scope.arr; },
+                    return scope.arr;
+                },
                 function(newValue, oldValue, scope) {
                     scope.counter++;
                 }
@@ -810,13 +811,13 @@ describe('Scope', function() {
             expect(scope.counter).toBe(2);
         });
 
-        it("3.4 监听数组元素的增加", function(){
-            scope.arr = ['a','b'];
+        it("3.4 监听数组元素的增加", function() {
+            scope.arr = ['a', 'b'];
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arr;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -832,13 +833,13 @@ describe('Scope', function() {
 
         });
 
-        it("3.5 监听数组元素的减少", function(){
-            scope.arr = ['a','c'];
+        it("3.5 监听数组元素的减少", function() {
+            scope.arr = ['a', 'c'];
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arr;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -854,13 +855,13 @@ describe('Scope', function() {
 
         });
 
-        it("3.6 监听数组项的改变", function(){
-            scope.arr = ['a','c'];
+        it("3.6 监听数组项的改变", function() {
+            scope.arr = ['a', 'c'];
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arr;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -876,13 +877,13 @@ describe('Scope', function() {
 
         });
 
-        it("3.7 监听数组项的排序", function(){
-            scope.arr = [2,1,3];
+        it("3.7 监听数组项的排序", function() {
+            scope.arr = [2, 1, 3];
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arr;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -898,17 +899,17 @@ describe('Scope', function() {
 
         });
 
-        it("3.8 监听函数参数的改变，类数组的对象", function(){
+        it("3.8 监听函数参数的改变，类数组的对象", function() {
 
             // 类数组：参数、DOM中的NodeList
-            (function(){
+            (function() {
                 scope.arrayLike = arguments;
-            })(1,2,3);
+            })(1, 2, 3);
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arrayLike;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -924,16 +925,16 @@ describe('Scope', function() {
 
         });
 
-        it("3.9 监听NodeList对象的改变，类数组的对象", function(){
+        it("3.9 监听NodeList对象的改变，类数组的对象", function() {
 
-            document.documentElement.appendChild(document.createElement('div')); 
+            document.documentElement.appendChild(document.createElement('div'));
             scope.arrayLike = document.getElementsByTagName('div');
 
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.arrayLike;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -949,13 +950,13 @@ describe('Scope', function() {
 
         });
 
-        it("3.10 监听到一个值变成对象", function(){
+        it("3.10 监听到一个值变成对象", function() {
 
             scope.counter = 0;
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.obj;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -973,16 +974,16 @@ describe('Scope', function() {
 
         });
 
-        it("3.11 对象中新增属性", function(){
+        it("3.11 对象中新增属性", function() {
 
             scope.counter = 0;
             scope.obj = {
                 a: 1
             };
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.obj;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -995,16 +996,16 @@ describe('Scope', function() {
 
         });
 
-        it("3.12 对象中属性的值发生改变", function(){
+        it("3.12 对象中属性的值发生改变", function() {
 
             scope.counter = 0;
             scope.obj = {
                 a: 1
             };
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.obj;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -1017,16 +1018,16 @@ describe('Scope', function() {
 
         });
 
-        it("3.13 删除对象的属性", function(){
+        it("3.13 删除对象的属性", function() {
 
             scope.counter = 0;
             scope.obj = {
                 a: 1
             };
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.obj;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
             });
 
@@ -1039,7 +1040,7 @@ describe('Scope', function() {
 
         });
 
-        it("3.14 特殊case:对象带有一个length的属性", function(){
+        it("3.14 特殊case:对象带有一个length的属性", function() {
 
             scope.counter = 0;
             scope.obj = {
@@ -1047,10 +1048,11 @@ describe('Scope', function() {
                 length: 5
             };
 
-            scope.$watchCollection(function(scope){
+            scope.$watchCollection(function(scope) {
                 return scope.obj;
-            }, function(newValue, oldValue, scope){
+            }, function(newValue, oldValue, scope) {
                 scope.counter++;
+                console.log('new:', newValue, 'old:', oldValue);
             });
 
             scope.$digest();
@@ -1061,6 +1063,26 @@ describe('Scope', function() {
             expect(scope.counter).toBe(2);
 
         });
+
+        it("3.15 特殊case:对象带有一个length的属性", function() {
+
+            scope.aValue = { a: 1, b: 2 };
+            var oldValueGiven;
+
+            scope.$watchCollection(function(scope) {
+                return scope.aValue;
+            }, function(newValue, oldValue, scope) {
+                oldValueGiven = oldValue;
+            });
+
+            // scope.$digest();
+            // expect(oldValueGiven).toBeUndefined();
+            // scope.aValue.c = 3;
+            scope.$digest();
+            expect(oldValueGiven).toEqual({ a: 1, b: 2 });
+
+        });
+
 
     });
 });
