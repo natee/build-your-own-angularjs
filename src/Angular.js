@@ -55,3 +55,13 @@ function isArrayLike(obj) {
     return isNumber(length) && length > 0 && (length - 1) in obj;
 
 }
+
+/**
+ * 合并两个数组
+ * @param  {array}   array1 [description]
+ * @param  {array}   array2 [description]
+ * @param  {number}   index  [description]
+ */
+function concat(array1, array2, index) {
+  return array1.concat(slice.call(array2, index));
+}

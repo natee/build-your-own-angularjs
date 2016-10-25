@@ -11,6 +11,8 @@ function Scope() {
     this.$$root = this; // 根作用域，子作用域通过原型链委托可访问到这个
     this.$$children = []; // 当前作用域的子作用域
     this.$$phase = null;
+
+    this.$$listeners = {}; // $on注册的事件队列
 }
 
 Scope.prototype = {
@@ -32,10 +34,12 @@ Scope.prototype = {
             // 使$evalAsync和$$postDigest执行时直接可以从根作用域执行digest
             child.$$asyncQueue = this.$$asyncQueue;
             child.$$postDigestQueue = this.$$postDigestQueue;
+
         }
 
         this.$$children.push(child); // 把子作用域添加到父作用域的children中
         child.$$watchers = [];
+        child.$$listeners = {};
         child.$$children = [];
         child.$parent = this;
         return child;
@@ -300,14 +304,14 @@ Scope.prototype = {
 
                     // 由于watchCollection是引用比较，
                     // 这里增加监听数组长度的改变，但是同一个数组中某项值发生变化则不视为发生变化
-                    if(newValue.length !== oldValue.length){
+                    if (newValue.length !== oldValue.length) {
                         changeCount++;
                         oldValue.length = newValue.length;
                     }
 
                     // 监听数组值是否发生改变
-                    _.forEach(newValue, function(newItem, i){
-                        if(newItem !== oldValue[i]){
+                    _.forEach(newValue, function(newItem, i) {
+                        if (newItem !== oldValue[i]) {
                             changeCount++;
                             oldValue[i] = newItem;
                         }
@@ -318,28 +322,28 @@ Scope.prototype = {
                     var newLength = 0; // 新对象属性的个数
 
                     // object 从无到有，发生改变
-                    if(!isObject(oldValue) || isArrayLike(oldValue)){
+                    if (!isObject(oldValue) || isArrayLike(oldValue)) {
                         changeCount++;
                         oldValue = {};
                         oldLength = 0;
                     }
 
                     // 检测对象值是否有改变
-                    for(var key in newValue){
+                    for (var key in newValue) {
 
                         // 只检测当前对象自有属性，不检测通过原型链继承来的
-                        if(newValue.hasOwnProperty(key)){
+                        if (newValue.hasOwnProperty(key)) {
 
                             newLength++;
 
-                            if(oldValue.hasOwnProperty(key)){
+                            if (oldValue.hasOwnProperty(key)) {
                                 // 修改属性值
                                 // oldValue[key] === undefined
-                                if(oldValue[key] !== newValue[key]){
+                                if (oldValue[key] !== newValue[key]) {
                                     changeCount++;
                                     oldValue[key] = newValue[key];
                                 }
-                            }else{
+                            } else {
                                 // 新增属性
                                 changeCount++;
 
@@ -347,19 +351,19 @@ Scope.prototype = {
                                 oldLength++;
                                 oldValue[key] = newValue[key];
                             }
-                            
+
                         }
 
                     }
 
                     // 所以只有删除了对象的属性才会执行二次遍历
-                    if(oldLength > newLength){
+                    if (oldLength > newLength) {
                         changeCount++;
-                        for(var key in oldValue){
-                            if(oldValue.hasOwnProperty(key) && !newValue.hasOwnProperty(key)){
+                        for (key in oldValue) {
+                            if (oldValue.hasOwnProperty(key) && !newValue.hasOwnProperty(key)) {
                                 // 删除了属性
                                 oldLength--;
-                                delete oldValue[key]
+                                delete oldValue[key];
                             }
                         }
                     }
@@ -381,18 +385,97 @@ Scope.prototype = {
         var internalListenerFn = function() {
             // TODO 显然还有bug，第一次执行时，veryOldValue = oldValue = newValue;
 
-            if(firstRun){
+            if (firstRun) {
                 listenerFn(newValue, oldValue, self);
                 firstRun = false;
-            }else{
+            } else {
                 listenerFn(newValue, veryOldValue, self);
             }
 
-            if(trackVeryOldValue){
+            if (trackVeryOldValue) {
                 // 保留真实的变化之前的值
                 veryOldValue = _.clone(newValue);
             }
         };
         return this.$watch(internalWatchFn, internalListenerFn);
+    }, // end $watchCollection
+
+    $on: function(eventName, listener) {
+        // $$listeners = {eventName:[lis1,lis2]}
+        var listeners = this.$$listeners[eventName];
+        if (!listeners) {
+            // 尚未注册过该事件
+            this.$$listeners[eventName] = listeners = [];
+        }
+
+        listeners.push(listener);
+
+        // 返回一个操作用于销毁事件
+        // 这里的销毁只是销毁当前注入的事件，同名的并不会都被销毁
+        return function() {
+            var index = listeners.indexOf(listener);
+            if (index >= 0) {
+                // TODO 如果在执行listener时销毁了当前事件，则会导致临近的下一个注入事件被跳过了
+                // listeners.splice(index, 1);
+                listeners[index] = null;
+            }
+        }
+
+    }, // end $on
+
+    /**
+     * 朝父级scope发送事件
+     * @param  {string}   eventName 事件名称
+     * @param  {}   args      额外需要传入的参数
+     */
+    $emit: function(eventName, args) {
+        // 初期其实可以直接把arguments传进去，
+        // 但是后期会对第一个参数做处理
+        // 巧妙把arguments转成了数组
+        
+        var evt = {
+            name: eventName
+        };
+        var listenerArgs = [evt].concat([].slice.call(arguments, 1));
+
+        var scope = this;
+        do{
+            scope.$$fireEventOnScope(eventName, listenerArgs);
+            scope = scope.$parent;
+        } while(scope)
+        // return this.$$fireEventOnScope(eventName, [].slice.call(arguments, 1));
+        
+        return evt;
+    },
+
+    $broadcast: function(eventName, args) {
+        var evt = {
+            name: eventName
+        };
+        var listenerArgs = [evt].concat([].slice.call(arguments, 1));
+
+        this.$$everyScope(function(scope){
+            scope.$$fireEventOnScope(eventName, listenerArgs);
+            return true;
+        });
+        return evt;
+    },
+
+    $$fireEventOnScope: function(eventName, args) {
+       
+        var listeners = this.$$listeners[eventName] || [];
+        
+        var i = 0;
+        while (i < listeners.length) {
+            // 第二次执行时把已销毁的事件干掉
+            if (listeners[i] === null) {
+                // 不过这里只有二次执行$emit或$braodcast时才会执行
+                listeners.splice(i, 1);
+            } else {
+                listeners[i].apply(null, args);
+                i++;
+            }
+        }
+
     }
 };
