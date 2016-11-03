@@ -1176,7 +1176,7 @@ describe('Scope', function() {
 
                 var args = lis1.calls.mostRecent().args;
 
-                expect(args[0]).toEqual({ name: 'someEvent' });
+                // expect(args[0]).toEqual({ name: 'someEvent' });
                 expect(args[1]).toEqual('and');
                 expect(args[2]).toEqual(['additional', 'arguments']);
             });
@@ -1208,7 +1208,7 @@ describe('Scope', function() {
             });
 
 
-            it("4.9 $emit向上传播", function(){
+            it("4.9 $emit向上传播", function() {
                 var parentListener = jasmine.createSpy();
                 var scopeListener = jasmine.createSpy();
 
@@ -1221,7 +1221,7 @@ describe('Scope', function() {
                 expect(parentListener).toHaveBeenCalled();
             });
 
-            it("4.10 $broadcast向下传播", function(){
+            it("4.10 $broadcast向下传播", function() {
                 var scopeListener = jasmine.createSpy();
                 var childListener = jasmine.createSpy();
                 var isolatedChildListener = jasmine.createSpy();
@@ -1236,8 +1236,90 @@ describe('Scope', function() {
                 expect(childListener).toHaveBeenCalled();
                 expect(isolatedChildListener).toHaveBeenCalled();
             });
+
+            it("4.15 在" + method + "上调用了preventDefault后设置defaultPrevented", function() {
+                var listener = function(event) {
+                    event.preventDefault();
+                };
+                scope.$on('someEvent', listener);
+                var event = scope[method]('someEvent');
+                expect(event.defaultPrevented).toBe(true);
+            });
+
+            it("4.18 " + method + "上发生异常也不会停止程序", function() {
+                var listener1 = function(event) {
+                    throw 'listener1 throwing an exception';
+                };
+                var listener2 = jasmine.createSpy();
+                scope.$on('someEvent', listener1);
+                scope.$on('someEvent', listener2);
+                scope[method]('someEvent');
+                expect(listener2).toHaveBeenCalled();
+            });
+
         });
 
+
+        it("4.11 添加targetScope到$emit上", function() {
+            var scopeListener = jasmine.createSpy();
+            var parentListener = jasmine.createSpy();
+            scope.$on('someEvent', scopeListener);
+            parent.$on('someEvent', parentListener);
+            scope.$emit('someEvent');
+            expect(scopeListener.calls.mostRecent().args[0].targetScope).toBe(scope);
+            expect(parentListener.calls.mostRecent().args[0].targetScope).toBe(scope);
+        });
+
+        it("4.12 添加currentScope到$emit上", function() {
+            var currentScopeOnScope, currentScopeOnParent;
+            var scopeListener = function(event) {
+                currentScopeOnScope = event.currentScope;
+            };
+            var parentListener = function(event) {
+                currentScopeOnParent = event.currentScope;
+            };
+            scope.$on('someEvent', scopeListener);
+            parent.$on('someEvent', parentListener);
+            scope.$emit('someEvent');
+            expect(currentScopeOnScope).toBe(scope);
+            expect(currentScopeOnParent).toBe(parent);
+        });
+
+        it("4.13 阻止执行父级scope的事件", function() {
+            var scopeListener = function(event) {
+                event.stopPropagation();
+            };
+            var parentListener = jasmine.createSpy();
+            scope.$on('someEvent', scopeListener);
+            parent.$on('someEvent', parentListener);
+            scope.$emit('someEvent');
+            expect(parentListener).not.toHaveBeenCalled();
+        });
+
+        it("4.14 阻止冒泡后仍然需要执行当前作用域事件队列中的其他listener", function() {
+            var listener1 = function(event) {
+                event.stopPropagation();
+            };
+            var listener2 = jasmine.createSpy();
+            scope.$on('someEvent', listener1);
+            scope.$on('someEvent', listener2);
+            scope.$emit('someEvent');
+            expect(listener2).toHaveBeenCalled();
+        });
+
+        it("4.16 销毁后触发$destroy", function() {
+            var listener = jasmine.createSpy();
+            scope.$on('$destroy', listener);
+            scope.$destroy();
+            expect(listener).toHaveBeenCalled();
+        });
+
+        it("4.17 children销毁时触发$destroy", function() {
+            var listener = jasmine.createSpy();
+            child.$on('$destroy', listener);
+            scope.$destroy();
+            expect(listener).toHaveBeenCalled();
+        });
 
     }); // end describe
 });

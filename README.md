@@ -86,3 +86,37 @@ AngularJS内部原理讲解。
 </tbody>
 </table>
 
+### 作用域事件
+- Angular事件是基于发布/订阅的设计模式，
+$on,$emit,$broadcast
+
+- 事件的监听函数如何注入到scope上的
+每次监听一个事件，则把listener添加到scope.$$listener队列中。
+
+- 作用域如何触发事件
+
+- $emit和$broadcast的区别：
+$emit是执行当前作用域及其父作用域上的事件，$broadcast是执行当前作用域和子作用域的事件。$emit可以阻止事件冒泡，而$broadcast不能，所以$broadcast的执行消耗的性能较大。
+
+- scope的event对象是什么？
+存储了当前事件名称，当前执行事件的作用域currentScope，触发事件的作用域targetScope，阻止默认行为事件。$emit中的event相对于$broadcast多了一个阻止冒泡函数。
+```
+event = {
+  name: 'eventName',
+  targetScope: this,
+  currentScope: triggerScope,
+  stopPropagation: function(){
+    stopped = true
+  },
+  defaultPrevented: false,
+  preventDefault: function(){
+    event.defaultPrevented = true;
+  }
+}
+```
+
+- scope的一些属性是仿照DOM event模型来的：
+如阻止冒泡和阻止默认行为。
+
+- 事件何时可以被停止，如何停止？
+如果是通过**$emit**来执行，想要阻止父作用域的事件触发，在当前作用域的listener中调用event.stopPropagation()函数即可。$broadcast则无法被阻止。

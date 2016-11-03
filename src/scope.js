@@ -267,6 +267,10 @@ Scope.prototype = {
         // 所有兄弟作用域
         var indexOfThis = siblings.indexOf(this);
         if (indexOfThis >= 0) {
+
+            // 如果子作用域中有监听$destory，如$on.('$destory', listener),
+            // 则scope.$destroy时同时触发这个监听函数listener
+            this.$broadcast('$destroy');
             siblings.splice(indexOfThis, 1);
         }
     },
@@ -424,37 +428,63 @@ Scope.prototype = {
     }, // end $on
 
     /**
-     * 朝父级scope发送事件
+     * 向父级scope发送事件，类似DOM事件的冒泡
      * @param  {string}   eventName 事件名称
      * @param  {}   args      额外需要传入的参数
      */
     $emit: function(eventName, args) {
+
+        var propagationStopped = false;
+
         // 初期其实可以直接把arguments传进去，
         // 但是后期会对第一个参数做处理
-        // 巧妙把arguments转成了数组
         
         var evt = {
-            name: eventName
+            name: eventName,
+            targetScope: this, // 执行时的作用域
+            stopPropagation: function(){
+                propagationStopped = true;
+            },
+            defaultPrevented: false,
+            preventDefault: function(){
+                evt.defaultPrevented = true;
+            }
         };
+
+        // 巧妙把arguments转成了数组
         var listenerArgs = [evt].concat([].slice.call(arguments, 1));
 
         var scope = this;
         do{
+            // evt是一个引用类型变量，所以这里修改后，listenerArgs也是最新的
+            evt.currentScope = scope; // 当前listener所在作用域
             scope.$$fireEventOnScope(eventName, listenerArgs);
             scope = scope.$parent;
-        } while(scope)
+        } while(scope && !propagationStopped)
         // return this.$$fireEventOnScope(eventName, [].slice.call(arguments, 1));
         
         return evt;
     },
 
+    /**
+     * 向子作用域发送事件，类似DOM事件的事件捕获
+     * @param  {string}   eventName [description]
+     * @param  {}   args      [description]
+     * @return {obj}             [description]
+     */
     $broadcast: function(eventName, args) {
         var evt = {
-            name: eventName
+            name: eventName,
+            targetScope: this,
+            defaultPrevented: false,
+            preventDefault: function(){
+                evt.defaultPrevented = true;
+            }
         };
         var listenerArgs = [evt].concat([].slice.call(arguments, 1));
 
         this.$$everyScope(function(scope){
+            evt.currentScope = scope;
             scope.$$fireEventOnScope(eventName, listenerArgs);
             return true;
         });
@@ -472,7 +502,11 @@ Scope.prototype = {
                 // 不过这里只有二次执行$emit或$braodcast时才会执行
                 listeners.splice(i, 1);
             } else {
-                listeners[i].apply(null, args);
+                try{
+                    listeners[i].apply(null, args);
+                } catch(e){
+                    console.error(e);
+                }
                 i++;
             }
         }
