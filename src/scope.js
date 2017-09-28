@@ -1,4 +1,5 @@
 /* jshint globalstrict: true */
+/* global parse: false */
 'use strict';
 
 function initWatchVal() {}
@@ -34,7 +35,6 @@ Scope.prototype = {
             // 使$evalAsync和$$postDigest执行时直接可以从根作用域执行digest
             child.$$asyncQueue = this.$$asyncQueue;
             child.$$postDigestQueue = this.$$postDigestQueue;
-
         }
 
         this.$$children.push(child); // 把子作用域添加到父作用域的children中
@@ -64,7 +64,13 @@ Scope.prototype = {
      */
     $watch: function(watchFn, listenerFn, valueEq) {
         var self = this;
+
+        watchFn = parse(watchFn);
+        listenerFn = parse(listenerFn);
         var watcher = {
+
+            // Q：传入一个带引号的对象为什么要用parse来解析一次？A：不解析的话watchFn其实是一个字符串
+            // Q：那直接传入一个普通对象不就好了？然后这里判断watchFn的类型
             watchFn: watchFn,
 
             // watcher可以不带listener，为了防止$digest报错，默认给个空函数
@@ -75,6 +81,17 @@ Scope.prototype = {
             // 初始化watch的默认值为fn，防止watchFn返回的是一个undefined导致不执行listenerFn
             last: initWatchVal
         };
+
+        if(watchFn.constant){
+            // 当前监听的是一个常量，总之是固定不会变的内容
+            watcher.listenerFn = function(newValue, oldValue, scope){
+                listenerFn(newValue, oldValue, scope);
+                var index = self.$$watchers.indexOf(watcher);
+                if(index >= 0){
+                    self.$$watchers.splice(index, 1);
+                }
+            };
+        }
 
         // 每次添加watch时，把watcher放到$$watchers的首位，不用push()方法
         this.$$watchers.unshift(watcher);
@@ -200,7 +217,7 @@ Scope.prototype = {
      * @return {[type]}       [description]
      */
     $eval: function(expr, arg) {
-
+        expr = parse(expr);
         return expr(this, arg);
     },
 
@@ -281,6 +298,8 @@ Scope.prototype = {
         var newValue;
         var oldValue;
         var changeCount = 0;
+        watchFn = parse(watchFn);
+        listenerFn = parse(listenerFn);
         var oldLength; // 放在internalWatchFn外部，在下次监听时直接获取
         var veryOldValue;
         var trackVeryOldValue = listenerFn.length > 1; // 监听执行函数参数个数超过1则表示需要用到oldValue
@@ -296,8 +315,8 @@ Scope.prototype = {
 
             // 不能通过newValue !== oldValue的形式，解决NaN的问题
             // string其实也是类数组，但这里直接过滤掉，string是不可变的所以用此形式监听没用
-            if (isObject(newValue)) {
-                if (isArrayLike(newValue)) {
+            if (_.isObject(newValue)) {
+                if (_.isArrayLike(newValue)) {
                     if (!_.isArray(oldValue)) {
                         // 新老不一致果断发生了改变
                         changeCount++;
@@ -326,7 +345,7 @@ Scope.prototype = {
                     var newLength = 0; // 新对象属性的个数
 
                     // object 从无到有，发生改变
-                    if (!isObject(oldValue) || isArrayLike(oldValue)) {
+                    if (!_.isObject(oldValue) || _.isArrayLike(oldValue)) {
                         changeCount++;
                         oldValue = {};
                         oldLength = 0;
@@ -423,7 +442,7 @@ Scope.prototype = {
                 // listeners.splice(index, 1);
                 listeners[index] = null;
             }
-        }
+        };
 
     }, // end $on
 
@@ -433,12 +452,10 @@ Scope.prototype = {
      * @param  {}   args      额外需要传入的参数
      */
     $emit: function(eventName, args) {
-
         var propagationStopped = false;
 
         // 初期其实可以直接把arguments传进去，
         // 但是后期会对第一个参数做处理
-        
         var evt = {
             name: eventName,
             targetScope: this, // 执行时的作用域
@@ -453,14 +470,13 @@ Scope.prototype = {
 
         // 巧妙把arguments转成了数组
         var listenerArgs = [evt].concat([].slice.call(arguments, 1));
-
         var scope = this;
         do{
             // evt是一个引用类型变量，所以这里修改后，listenerArgs也是最新的
             evt.currentScope = scope; // 当前listener所在作用域
             scope.$$fireEventOnScope(eventName, listenerArgs);
             scope = scope.$parent;
-        } while(scope && !propagationStopped)
+        } while(scope && !propagationStopped);
         // return this.$$fireEventOnScope(eventName, [].slice.call(arguments, 1));
         
         return evt;
@@ -483,6 +499,7 @@ Scope.prototype = {
         };
         var listenerArgs = [evt].concat([].slice.call(arguments, 1));
 
+        // 递归遍历
         this.$$everyScope(function(scope){
             evt.currentScope = scope;
             scope.$$fireEventOnScope(eventName, listenerArgs);
@@ -492,7 +509,7 @@ Scope.prototype = {
     },
 
     $$fireEventOnScope: function(eventName, args) {
-       
+
         var listeners = this.$$listeners[eventName] || [];
         
         var i = 0;

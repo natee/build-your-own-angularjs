@@ -427,6 +427,42 @@ describe('Scope', function() {
             scope.$digest();
             expect(watchCalls).toEqual(['first', 'second', 'third', 'first', 'third']);
         });
+
+        it('==watch函数接收表达式', function() {
+            var theValue;
+            scope.$watch('42', function(newValue, oldValue, scope) {
+                theValue = newValue;
+            });
+
+            scope.$digest();
+            expect(theValue).toBe(42);
+        });
+
+        it('----第一次调用constant类型的监听函数后直接移除', function() {
+            scope.$watch('42', function() {});
+
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+
+        it('----listener函数接收表达式形式', function() {
+            scope.$watch('42', '"fourty-two"');
+
+            scope.$digest();
+        });
+
+        it('----$eval函数接收表达式形式', function() {
+            expect(scope.$eval('42')).toBe(42);
+        });
+
+        it('----$apply函数接收表达式形式', function() {
+            expect(scope.$apply('42')).toBe(42);
+        });
+
+        it('----$evalAsync函数接收表达式形式', function(done) {
+            scope.$evalAsync('42');
+            scope.$$postDigest(done);
+        });
     }); // end describe
 
     // 第二部分，inheritance，作用域继承
@@ -1079,6 +1115,22 @@ describe('Scope', function() {
             expect(oldValueGiven).toEqual({ a: 1, b: 2 });
 
         });
+
+        it('accepts expressions for watch functions ',
+            function() {
+                var theValue;
+                scope.$watchCollection('[1, 2, 3]', function(newValue, oldValue, scope) {
+                    theValue = newValue;
+                });
+                scope.$digest();
+                expect(theValue).toEqual([1, 2, 3]);
+            });
+        it('accepts expressions for listener functions ',
+            function() {
+                var theValue;
+                scope.$watchCollection('[1, 2, 3]', '"one-two-three"');
+                scope.$digest();
+            });
     }); // end describe
 
     // 第四部分，作用域事件
@@ -1322,4 +1374,6 @@ describe('Scope', function() {
         });
 
     }); // end describe
+
+
 });
