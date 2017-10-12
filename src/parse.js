@@ -38,6 +38,27 @@ var ensureSafeObject = function(obj) {
     return obj;
 };
 
+var setter = function(object, path, value){
+    // 嵌套时path为a.b
+    var keys = path.split('.');
+    while(keys.length > 1){
+        var key = keys.shift();
+        ensureSafeMemberName(key);
+
+        // 要是我写的话，可能直接object = object[key] || {}了
+        // 然而，这种||往往不靠谱，object[key] = null undefined 0 '' false也都不能认为是对象
+        // 必须真的是这个key不存在才行
+        if(!object.hasOwnProperty(key)){
+            object[key] = {};
+        }
+
+        object = object[key];
+    }
+
+    object[keys.shift()] = value;
+    return value;
+};
+
 function parse(expr) {
 
     switch (typeof expr) {
@@ -73,7 +94,7 @@ Lexer.prototype.lex = function(text) {
         } else if (this.is('"\'')) {
             // String
             this.readString(this.ch);
-        } else if (this.is('[],{}:.()')) {
+        } else if (this.is('[],{}:.()=')) {
             this.tokens.push({
                 text: this.ch,
                 json: true
@@ -256,6 +277,9 @@ Lexer.prototype.readIdent = function() {
     } else {
         // 读取到一个变量 parse('test')
         token.fn = getterFn(text);
+        token.fn.assign = function(self, value){
+            return setter(self, text, value);
+        };
     }
 
     this.tokens.push(token);
@@ -329,7 +353,8 @@ function Parser(lexer) {
  */
 Parser.prototype.parse = function(text) {
     this.tokens = this.lexer.lex(text);
-    return this.primary(); // 实际是执行_.constant()方法
+    return this.assignment();
+    // return this.primary(); // 实际是执行_.constant()方法
 };
 
 Parser.prototype.arrayDeclaration = function() {
@@ -340,7 +365,7 @@ Parser.prototype.arrayDeclaration = function() {
             if (this.peek(']')) {
                 break;
             }
-            elementFns.push(this.primary());
+            elementFns.push(this.assignment());
 
         } while (this.expect(','));
     }
@@ -348,13 +373,13 @@ Parser.prototype.arrayDeclaration = function() {
 
     var arrayFn = function(self, locals) {
         var elements = _.map(elementFns, function(elementFn) {
-            return elementFn();
+            return elementFn(self, locals);
         });
         return elements;
     };
 
     arrayFn.literal = true;
-    arrayFn.constant = true;
+    arrayFn.constant = _.every(elementFns, 'constant');
     return arrayFn;
 };
 
@@ -364,7 +389,7 @@ Parser.prototype.object = function() {
         do {
             var keyToken = this.expect();
             this.consume(':');
-            var valueExpression = this.primary();
+            var valueExpression = this.assignment();
             // console.log(keyToken.string, keyToken.text);
             keyValues.push({
                 key: keyToken.string || keyToken.text,
@@ -376,15 +401,15 @@ Parser.prototype.object = function() {
 
     this.consume('}');
 
-    var objectFn = function() {
+    var objectFn = function(scope, locals) {
         var object = {};
         _.forEach(keyValues, function(kv) {
-            object[kv.key] = kv.value();
+            object[kv.key] = kv.value(scope, locals);
         });
         return object;
     };
     objectFn.literal = true;
-    objectFn.constant = true;
+    objectFn.constant = _.every(_.map(keyValues, 'value'), 'constant');
     return objectFn;
 };
 
@@ -425,11 +450,19 @@ Parser.prototype.objectIndex = function(objFn) {
 
     this.consume(']');
 
-    return function(scope, locals) {
+    var objectIndexFn = function(scope, locals) {
         var obj = objFn(scope, locals); // scope.aKey
         var index = indexFn(scope, locals); // scope.anotherKey
         return ensureSafeObject(obj[index]); // scope.aKey[scope.anotherKey]
     };
+
+    objectIndexFn.assign = function(self, value, locals){
+        var obj = ensureSafeObject(objFn(self, locals));
+        var index = indexFn(self, locals);
+        return (obj[index] = value);
+    };
+
+    return objectIndexFn;
 };
 
 /**
@@ -440,12 +473,20 @@ Parser.prototype.objectIndex = function(objFn) {
  * getter = aThirdKey fn
  */
 Parser.prototype.fieldAccess = function(objFn) {
-    var getter = this.expect().fn;
+    var token = this.expect();
+    var getter = this.fn;
 
-    return function(scope, locals) {
+    var fieldAccessFn = function(scope, locals) {
         var obj = objFn(scope, locals); // 在scope中找到objFn对应的key(aKey["anotherKey"]),scope.aKey['anotherKey']
         return getter(obj); // 在obj中找到getter对应的key，obj['aThirdKey']
     };
+
+    fieldAccessFn.assign = function(self, value, locals){
+        var obj = objFn(self, locals);
+        return setter(obj, token.text, value);
+    };
+
+    return fieldAccessFn;
 };
 
 Parser.prototype.functionCall = function(fnFn, contextFn) {
@@ -466,6 +507,23 @@ Parser.prototype.functionCall = function(fnFn, contextFn) {
         });
         return ensureSafeObject(fn.apply(context, args));
     };
+};
+
+Parser.prototype.assignment = function(){
+    var left = this.primary();
+    if(this.expect('=')){
+        if(!left.assign){
+            // 非变量
+            throw 'Implies assignment but cannot be assigned to';
+        }
+
+        // =右侧具体的值
+        var right = this.primary();
+        return function(scope, locals){
+            return left.assign(scope, right(scope, locals), locals);
+        };
+    }
+    return left;
 };
 
 Parser.prototype.primary = function() {

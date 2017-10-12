@@ -385,6 +385,101 @@ describe('parse', function() {
         expect(function() { fn({ fnConstructor: (function A() { }).constructor }); }).toThrow();
     });
 
+    it('==解析一个简单的赋值语句', function() {
+        var fn = parse('anAttribute = 42');
+        var scope = {};
+        fn(scope);
+        expect(scope.anAttribute).toBe(42);
+    });
+
+    it('----解析任意的原始表达式', function() {
+        var fn = parse('anAttribute = aFunction()');
+        var scope = {
+            aFunction: _.constant(42)
+        };
+        fn(scope);
+        expect(scope.anAttribute).toBe(42);
+    });
+
+    it('----给嵌套的对象赋值', function() {
+        var fn = parse('anObject.anAttribute = 42');
+        var scope = {
+            anObject: {}
+        };
+        fn(scope);
+        expect(scope.anObject.anAttribute).toBe(42);
+    });
+
+    it('----给嵌套的对象赋值，对象不存在则自动创建', function() {
+        var fn = parse('anObject.anAttribute = 42');
+        var scope = {
+        };
+        fn(scope);
+        expect(scope.anObject.anAttribute).toBe(42);
+    });
+
+    it('----用中括号给嵌套的对象赋值', function() {
+        var fn = parse('anObject["anAttribute"] = 42');
+        var scope = {
+            anObject: {}
+        };
+        fn(scope);
+        expect(scope.anObject.anAttribute).toBe(42);
+    });
+
+    it('----给对象赋值，先中括号再点的形式', function() {
+        var fn = parse('anObject["otherObject"].nested = 42');
+        var scope = {
+            anObject: {otherObject: {}}
+        };
+        fn(scope);
+        expect(scope.anObject.otherObject.nested).toBe(42);
+    });
+
+    it('==解析非常量的数组', function() {
+        var fn = parse('[a, b, c()]');
+        expect(fn({a: 1, b: 2, c: _.constant(3)})).toEqual([1,2,3]);
+    });
+
+    it('==解析非常量的对象', function() {
+        var fn = parse('[a, b, c()]');
+        expect(fn({a: 1, b: 2, c: _.constant(3)})).toEqual([1,2,3]);
+    });
+
+    it('----数组只包含常量时让其具有常量属性' , function() { 
+        var fn = parse('[1, 2, [3, 4]]');
+        expect(fn.constant).toBe(true);
+    });
+
+    it('----数组只要包含字面量则让其常量属性为false' , function() { 
+        expect(parse('[1, 2, a]').constant).toBe(false);
+        expect(parse('[1, 2, [[[[[a]]]]]]').constant).toBe(false);
+    });
+
+    it('----对象只包含常量时让其具有常量属性' , function() { 
+        var fn = parse('{a: 1, b: {c: 3}}');
+        expect(fn.constant).toBe(true);
+    });
+
+    it('----对象只要含字面量则让其常量属性为false' , function() { 
+        expect(parse('{a: 1, b: c}').constant).toBe(false);
+        expect(parse('{a: 1, b: {c: d}}').constant).toBe(false);
+    });
+
+    it('----数组元素可以是一个赋值语句' , function() { 
+        var fn = parse('[a = 1]');
+        var scope = {};
+        expect(fn(scope)).toEqual([1]);
+        expect(scope.a).toBe(1);
+    });
+
+    it('----对象属性的值可以是一个赋值语句' , function() { 
+        var fn = parse('{a: b = 1}');
+        var scope = {};
+        expect(fn(scope)).toEqual({a: 1});
+        expect(scope.b).toBe(1);
+    });
+
     // describe('寻找表达式和函数调用表达式', function(){
     //     var scope;
     //     beforeEach(function() {

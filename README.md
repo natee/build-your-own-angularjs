@@ -128,7 +128,45 @@ event = {
 - 如何处理整数、浮点数、科学计数的
 - 如何处理字符串
 - 如何处理布尔值和null
-- 如何处理空白内容whitespace（`\n`、`\t`、`\v`、`\f`、`\r`、` `）
-- 如何处理数组和对象，以及如何递归处理其中的内容
-- 表达式解析如何集成到scope中，scope的哪些操作支持表达式（$watch、$watchCollection、$apply、$eval、$evalAsync）
+    认为是处理一个字面量，和预置的几种布尔值和null进行比较，满足条件即返回
 
+- 如何处理空白内容whitespace（`\n`、`\t`、`\v`、`\f`、`\r`、` `）
+    直接判断就行
+
+- 如何处理数组和对象，以及如何递归处理其中的内容
+- 表达式解析如何集成到scope中，scope的哪些操作支持表达式
+  把scope中支持表达式的函数，表达式部分用parser服务解析一次即实现了parser和scope的集成。
+  这些函数都支持表达式：$watch(exp, listener)、$watchCollection、$apply、$eval、$evalAsync
+
+### 查找属性和函数调用
+- Angular表达式如何通过`.`和`[]`的形式进行属性查找
+  `.`和`[]`左侧部分的对象已正常解析获得，判断是`.[`来获取即可。
+
+- 如何正确解析任意层嵌套的对象？
+  2层以内，直接按照正常方式获取。超过3层的生成一段循环代码code，然后通过`new Function('scope', code)`的方式执行代码获取。
+
+- 词法分析是如何缓存getter函数的？
+  当一个表达式解析次数过多时，性能有问题。
+  Angular通过一个getterFnCache对象来存储每一个表达式的fn，再再次解析时，如果有缓存内容则直接返回。
+
+- scope上的属性是如何被locals覆盖的？
+  大概就像自作用域找不到就在父作用域找某个变量的意思。locals上找到了某个key则不必在scope上找。
+
+- Angular表达式如何执行一个函数调用？
+  找到要调用的事哪个函数名称aFn，判断`(`来确认执行函数，后面紧跟的不是`)`则处理函数的参数args。处理完毕后，aFn.apply(context, args)执行。
+
+- 如何处理`this`？
+  如上面的函数调用，context表示执行上下文。Angular每次解析一个字面量时，则把当前字面量赋值给context，直到函数执行的时候，调用该函数的上下文即为正常的this。`a.b.c()`，this指`a.b`。
+
+- Function constructor出于什么原因被阻止的？如何阻止的？
+  通过constructor可以对代码进行攻击，如`aFunction.constructor("return window;")()`，所以需要阻止。
+  判断字面量是否为`constructor`来进行异常捕获。
+
+- 潜在危险的object是如何被阻止的？
+  值不能为window对象（why?可以执行挂在window对象上的一些危险函数），也只能通过简单的window对象有的属性来判断。`obj.document && obj.location && obj.alert && obj.setInterval`
+
+- 如何实现对简单属性赋值，如何对嵌套属性赋值？
+  识别`=`，然后通过一个setter(object, path, value)函数进行赋值。
+
+- 对一个不存在的属性赋值时会怎样？
+  每解析到一个属性时，如果没有值，则赋值成`{}`
