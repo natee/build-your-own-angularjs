@@ -382,7 +382,7 @@ describe('parse', function() {
 
     it('----安全策略2：不允许调用函数的constructor', function() {
         var fn = parse('fnConstructor("return window;")');
-        expect(function() { fn({ fnConstructor: (function A() { }).constructor }); }).toThrow();
+        expect(function() { fn({ fnConstructor: (function A() {}).constructor }); }).toThrow();
     });
 
     it('==解析一个简单的赋值语句', function() {
@@ -412,8 +412,7 @@ describe('parse', function() {
 
     it('----给嵌套的对象赋值，对象不存在则自动创建', function() {
         var fn = parse('anObject.anAttribute = 42');
-        var scope = {
-        };
+        var scope = {};
         fn(scope);
         expect(scope.anObject.anAttribute).toBe(42);
     });
@@ -430,7 +429,7 @@ describe('parse', function() {
     it('----给对象赋值，先中括号再点的形式', function() {
         var fn = parse('anObject["otherObject"].nested = 42');
         var scope = {
-            anObject: {otherObject: {}}
+            anObject: { otherObject: {} }
         };
         fn(scope);
         expect(scope.anObject.otherObject.nested).toBe(42);
@@ -438,48 +437,145 @@ describe('parse', function() {
 
     it('==解析非常量的数组', function() {
         var fn = parse('[a, b, c()]');
-        expect(fn({a: 1, b: 2, c: _.constant(3)})).toEqual([1,2,3]);
+        expect(fn({ a: 1, b: 2, c: _.constant(3) })).toEqual([1, 2, 3]);
     });
 
     it('==解析非常量的对象', function() {
         var fn = parse('[a, b, c()]');
-        expect(fn({a: 1, b: 2, c: _.constant(3)})).toEqual([1,2,3]);
+        expect(fn({ a: 1, b: 2, c: _.constant(3) })).toEqual([1, 2, 3]);
     });
 
-    it('----数组只包含常量时让其具有常量属性' , function() { 
+    it('----数组只包含常量时让其具有常量属性', function() {
         var fn = parse('[1, 2, [3, 4]]');
         expect(fn.constant).toBe(true);
     });
 
-    it('----数组只要包含字面量则让其常量属性为false' , function() { 
+    it('----数组只要包含字面量则让其常量属性为false', function() {
         expect(parse('[1, 2, a]').constant).toBe(false);
         expect(parse('[1, 2, [[[[[a]]]]]]').constant).toBe(false);
     });
 
-    it('----对象只包含常量时让其具有常量属性' , function() { 
+    it('----对象只包含常量时让其具有常量属性', function() {
         var fn = parse('{a: 1, b: {c: 3}}');
         expect(fn.constant).toBe(true);
     });
 
-    it('----对象只要含字面量则让其常量属性为false' , function() { 
+    it('----对象只要含字面量则让其常量属性为false', function() {
         expect(parse('{a: 1, b: c}').constant).toBe(false);
         expect(parse('{a: 1, b: {c: d}}').constant).toBe(false);
     });
 
-    it('----数组元素可以是一个赋值语句' , function() { 
+    it('----数组元素可以是一个赋值语句', function() {
         var fn = parse('[a = 1]');
         var scope = {};
         expect(fn(scope)).toEqual([1]);
         expect(scope.a).toBe(1);
     });
 
-    it('----对象属性的值可以是一个赋值语句' , function() { 
+    it('----对象属性的值可以是一个赋值语句', function() {
         var fn = parse('{a: b = 1}');
         var scope = {};
-        expect(fn(scope)).toEqual({a: 1});
+        expect(fn(scope)).toEqual({ a: 1 });
         expect(scope.b).toBe(1);
     });
 
+    it('==一元操作符+', function() {
+        expect(parse('+42')()).toBe(42);
+        expect(parse('+a')({ a: 42 })).toBe(42);
+    });
+
+    it('----parses a unary !', function() {
+        expect(parse('!true')()).toBe(false);
+        expect(parse('!42')()).toBe(false);
+        expect(parse('!a')({ a: false })).toBe(true);
+        expect(parse('!!a')({ a: false })).toBe(false);
+    });
+
+    it('----parses negated value as constant if value is constant', function() {
+        expect(parse('!true').constant).toBe(true);
+        expect(parse('!!true').constant).toBe(true);
+        expect(parse('!a').constant).toBeFalsy();
+    });
+
+    it('----一元操作符-', function() {
+        expect(parse('-42')()).toBe(-42);
+        expect(parse('-a')({ a: -42 })).toBe(42);
+        expect(parse('--a')({ a: -42 })).toBe(-42);
+    });
+
+    it('----parses numerically negated value as constant if needed ',
+        function() {
+            expect(parse('-42').constant).toBe(true);
+            expect(parse('-a').constant).toBeFalsy();
+        });
+
+    it('----对一个不存在的变量进行-操作，得到0', function() {
+        expect(parse('-a')()).toBe(0);
+    });
+
+    it('----加法+' , function() {
+        expect(parse('21 + 2')()).toBe(23);
+    });
+    it('----减法-' , function() {
+        expect(parse('21 - 2')()).toBe(19);
+    });
+
+    it('----乘法*' , function() {
+        expect(parse('21 * 2')()).toBe(42);
+    });
+    it('----除法/' , function() {
+        expect(parse('42 / 2')()).toBe(21);
+    });
+    it('----取余%' , function() {
+        expect(parse('21 % 2')()).toBe(1);
+    });
+
+    it('----混合计算' , function() {
+        expect(parse('36 * 2 % 5')()).toBe(2);
+    });
+
+    it('----混合计算，优先级问题' , function() {
+        expect(parse('36 - 2 * 5 + 1')()).toBe(27);
+    });
+
+    it('----减法-，减去一个未赋值的变量' , function() {
+        expect(parse('a-b')({a:20})).toBe(20);
+        expect(parse('a-b')({b:20})).toBe(-20);
+        expect(parse('a-b')({})).toBe(0);
+    });
+
+    it('----加法+，加上一个未赋值的变量' , function() {
+        expect(parse('a+b')({a:20})).toBe(20);
+        expect(parse('a+b')({b:20})).toBe(20);
+    });
+
+    it('----加法+，两个操作数都不存在时返回undefined' , function() {
+        expect(parse('a+b')({})).toBeUndefined();
+    });
+
+    it( '==比较运算符' , function() {
+        expect(parse( '1 < 2' )()).toBe(true);
+        expect(parse( '1 > 2' )()).toBe(false);
+        expect(parse( '1 <= 2' )()).toBe(true);
+        expect(parse( '2 <= 2' )()).toBe(true);
+        expect(parse( '1 >= 2' )()).toBe(false);
+        expect(parse( '2 >= 2' )()).toBe(true);
+    });
+    it( '----相等运算符' , function() {
+        expect(parse( '42==42' )()).toBe(true);
+        expect(parse( '42=="42"' )()).toBe(true);
+        expect(parse( '42 != 42' )()).toBe(false);
+        expect(parse( '42 === 42' )()).toBe(true);
+        expect(parse( '42 === "42"' )()).toBe(false);
+        expect(parse( '42 !== 42' )()).toBe(false);
+    });
+    it( '----比较运算符优先级高于等于运算符' , function() {
+        expect(parse( '2 == "2" > 2 === "2"' )()).toBe(false);
+    });
+
+    it( '----比较运算符优先级低于加减运算符' , function() {
+        expect(parse( '2 + 3 < 6 - 2' )()).toBe(false);
+    });
     // describe('寻找表达式和函数调用表达式', function(){
     //     var scope;
     //     beforeEach(function() {

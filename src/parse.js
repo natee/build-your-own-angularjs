@@ -14,7 +14,43 @@ var ESCAPES = {
 var OPERATORS = {
     'null': _.constant(null),
     'true': _.constant(true),
-    'false': _.constant(false)
+    'false': _.constant(false),
+    '+': function(self, locals, a, b) {
+        a = a(self, locals);
+        b = b(self, locals);
+        if (!_.isUndefined(a)) {
+            if (!_.isUndefined(b)) {
+                return a + b;
+            } else {
+                return a;
+            }
+        }
+        return b;
+    },
+    '!': function(self, locals, afterExp) {
+        return !afterExp(self, locals);
+    },
+    '-': function(self, locals, a, b) {
+        a = a(self, locals);
+        b = b(self, locals);
+        return (!_.isUndefined(a) ? a : 0) - (!_.isUndefined(b) ? b : 0);
+    },
+    '*': function(self, locals, a, b) { return a(self, locals) * b(self, locals); },
+    '/': function(self, locals, a, b) { return a(self, locals) / b(self, locals); },
+    '%': function(self, locals, a, b) { return a(self, locals) % b(self, locals); },
+    '^': function(self, locals, a, b) { return a(self, locals) ^ b(self, locals); },
+    '=': _.noop,
+    '===': function(self, locals, a, b) { return a(self, locals) === b(self, locals); },
+    '!==': function(self, locals, a, b) { return a(self, locals) !== b(self, locals); },
+    '==': function(self, locals, a, b) { return a(self, locals) == b(self, locals); },
+    '!=': function(self, locals, a, b) { return a(self, locals) != b(self, locals); },
+    '<': function(self, locals, a, b) { return a(self, locals) < b(self, locals); },
+    '>': function(self, locals, a, b) { return a(self, locals) > b(self, locals); },
+    '<=': function(self, locals, a, b) { return a(self, locals) <= b(self, locals); },
+    '>=': function(self, locals, a, b) { return a(self, locals) >= b(self, locals); },
+    '&&': function(self, locals, a, b) { return a(self, locals) && b(self, locals); },
+    '||': function(self, locals, a, b) { return a(self, locals) || b(self, locals); },
+    '&': function(self, locals, a, b) { return a(self, locals) & b(self, locals); }
 };
 
 var ensureSafeMemberName = function(name) {
@@ -32,23 +68,23 @@ var ensureSafeObject = function(obj) {
             (obj.nodeName || (obj.prop && obj.attr && obj.find))) {
             throw 'Referencing DOM nodes in Angular expressions is disallowed!';
         } else if (obj.constructor === obj) {
-			throw 'Referencing Function in Angular expressions is disallowed!'; 
-		}
+            throw 'Referencing Function in Angular expressions is disallowed!';
+        }
     }
     return obj;
 };
 
-var setter = function(object, path, value){
+var setter = function(object, path, value) {
     // 嵌套时path为a.b
     var keys = path.split('.');
-    while(keys.length > 1){
+    while (keys.length > 1) {
         var key = keys.shift();
         ensureSafeMemberName(key);
 
         // 要是我写的话，可能直接object = object[key] || {}了
         // 然而，这种||往往不靠谱，object[key] = null undefined 0 '' false也都不能认为是对象
         // 必须真的是这个key不存在才行
-        if(!object.hasOwnProperty(key)){
+        if (!object.hasOwnProperty(key)) {
             object[key] = {};
         }
 
@@ -110,7 +146,18 @@ Lexer.prototype.lex = function(text) {
         } else if (this.isWhitespace(this.ch)) {
             this.index++;
         } else {
-            throw 'Unexpected next character:' + this.ch;
+
+            // 操作符 TODO 处理==类似的多个字符的运算符
+            var fn = OPERATORS[this.ch];
+            if (fn) {
+                this.tokens.push({
+                    text: this.ch,
+                    fn: fn
+                });
+                this.index++;
+            } else {
+                throw 'Unexpected next character:' + this.ch;
+            }
         }
     }
 
@@ -277,7 +324,7 @@ Lexer.prototype.readIdent = function() {
     } else {
         // 读取到一个变量 parse('test')
         token.fn = getterFn(text);
-        token.fn.assign = function(self, value){
+        token.fn.assign = function(self, value) {
             return setter(self, text, value);
         };
     }
@@ -345,6 +392,12 @@ Lexer.prototype.isWhitespace = function(ch) {
 function Parser(lexer) {
     this.lexer = lexer;
 }
+
+Parser.ZERO = _.extend(function() {
+    return 0;
+}, {
+    constant: true
+});
 
 /**
  * 解析表达式
@@ -456,7 +509,7 @@ Parser.prototype.objectIndex = function(objFn) {
         return ensureSafeObject(obj[index]); // scope.aKey[scope.anotherKey]
     };
 
-    objectIndexFn.assign = function(self, value, locals){
+    objectIndexFn.assign = function(self, value, locals) {
         var obj = ensureSafeObject(objFn(self, locals));
         var index = indexFn(self, locals);
         return (obj[index] = value);
@@ -474,14 +527,14 @@ Parser.prototype.objectIndex = function(objFn) {
  */
 Parser.prototype.fieldAccess = function(objFn) {
     var token = this.expect();
-    var getter = this.fn;
+    var getter = token.fn;
 
     var fieldAccessFn = function(scope, locals) {
         var obj = objFn(scope, locals); // 在scope中找到objFn对应的key(aKey["anotherKey"]),scope.aKey['anotherKey']
         return getter(obj); // 在obj中找到getter对应的key，obj['aThirdKey']
     };
 
-    fieldAccessFn.assign = function(self, value, locals){
+    fieldAccessFn.assign = function(self, value, locals) {
         var obj = objFn(self, locals);
         return setter(obj, token.text, value);
     };
@@ -509,17 +562,63 @@ Parser.prototype.functionCall = function(fnFn, contextFn) {
     };
 };
 
-Parser.prototype.assignment = function(){
-    var left = this.primary();
-    if(this.expect('=')){
-        if(!left.assign){
+/**
+ * 一元操作符
+ */
+Parser.prototype.unary = function() {
+    var parser = this;
+    var operator;
+    var operand;
+    if (this.expect('+')) {
+        return this.primary();
+    } else if ((operator = this.expect('!'))) {
+
+        // 操作数
+        operand = parser.unary();
+
+        var unaryFn = function(self, locals) {
+            // parser.unary()就是!后面的表达式
+            return operator.fn(self, locals, operand);
+        };
+
+        unaryFn.constant = operand.constant;
+
+        return unaryFn;
+    } else if ((operator = this.expect('-'))) {
+        // -前面的默认为0
+        return this.binaryFn(Parser.ZERO, operator.fn, parser.unary());
+    } else {
+        return this.primary();
+    }
+};
+
+// 乘除取余，优先级要高于加减
+Parser.prototype.multiplicative = function() {
+
+    // 一元操作符优先级高
+    var left = this.unary();
+    var operator;
+
+    while ((operator = this.expect('*', '/', '%'))) {
+        left = this.binaryFn(left, operator.fn, this.unary());
+    }
+
+    return left;
+};
+
+Parser.prototype.assignment = function() {
+    // var left = this.unary();
+    var left = this.equality();
+    if (this.expect('=')) {
+        if (!left.assign) {
             // 非变量
             throw 'Implies assignment but cannot be assigned to';
         }
 
         // =右侧具体的值
-        var right = this.primary();
-        return function(scope, locals){
+        // var right = this.unary();
+        var right = this.equality();
+        return function(scope, locals) {
             return left.assign(scope, right(scope, locals), locals);
         };
     }
@@ -565,4 +664,43 @@ Parser.prototype.primary = function() {
     }
 
     return primary;
+};
+
+// 加减
+Parser.prototype.additive = function() {
+    // 先求乘除
+    var left = this.multiplicative();
+    var operator;
+    while ((operator = this.expect('+', '-'))) {
+        left = this.binaryFn(left, operator.fn, this.multiplicative());
+    }
+    return left;
+};
+
+// 等于判断
+Parser.prototype.equality = function() {
+    var left = this.relational();
+    var token;
+    if ((token = this.expect('==', '!=', '===', '!=='))) {
+        left = this.binaryFn(left, token.fn, this.equality());
+    }
+    return left;
+};
+
+// 比较判断
+Parser.prototype.relational = function() {
+    var left = this.additive();
+    var token;
+    if ((token = this.expect('<', '>', '<=', '>='))) {
+        left = this.binaryFn(left, token.fn, this.relational());
+    }
+    return left;
+};
+
+Parser.prototype.binaryFn = function(left, op, right) {
+    var fn = function(self, locals) {
+        return op(self, locals, left, right);
+    };
+    fn.constant = left.constant && right.constant;
+    return fn;
 };
